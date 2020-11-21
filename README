@@ -1,0 +1,69 @@
+Opis zbiorów danych
+
+gdp-vs-happiness.csv: GDP vs satisfaction
+=====================
+kraj
+iso
+rok
+GDP per capita (constant_2011 international_USD)
+Life satisfaction (country average; 0-10) (Cantril Ladder (0=worst; 10=best))
+
+MeatCons_PC.csv: spożycie mięsa na świecie
+================
+country;symbol;y2013;y1980
+
+Covid19_tests_W42.csv
+=====================
+Testy na Covid 42 tydzień
+
+Covid19_tests_vs_cases.csv
+==========================
+Testy na Covid 42 tydzień / przypadki i zgony
+
+
+c19_PL.csv
+==========
+Testy na Covid, przypadki i zgony wg województw w PL
+
+data
+woj = nazwa
+typ = nieużywana dana
+testy = stan testowania na dzień `data'
+newc;newd = zakażenia/zmarli w dniu `data'
+totalc;totald = stan zakażeń/zmarłych na dzień `data'
+teryt = numer TERYT
+pop = liczba mieszkańców (w tys)
+popk = liczba kobiet (w promocji)
+
+pima-indians-diabetes.csv
+=========================
+
+medical records for Pima Indians
+and whether or not each patient will have an onset of diabetes within ve years:
+
+preg = Number of times pregnant
+plas = Plasma glucose concentration a 2 hours in an oral glucose tolerance test
+pres = Diastolic blood pressure (mm Hg)
+skin = Triceps skin fold thickness (mm)
+test = 2-Hour serum insulin (mu U/ml)
+mass = Body mass index (weight in kg/(height in m)^2)
+pedi = Diabetes pedigree function
+age = Age (years)
+class = Class variable (1:tested positive for diabetes, 0: tested negative for diabetes)
+
+pomorskie_zgony_i.csv
+=====================
+zgony z powodu COVID wg płci i wieku (woj pomorskie)
+
+smoker.csv
+==========
+Palenie a status społeczno-ekonomiczny (SES)
+
+vit_C.csv
+=========
+Witamina C a przeziębienie
+
+price-list.csv
+==============
+
+Fikcyjna lista zakupów

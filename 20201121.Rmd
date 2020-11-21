@@ -1,0 +1,579 @@
+---
+title: "Statystyka: analiza współzależności cech"
+author: "TP"
+date: "1/11/2020"
+output: html_document
+   
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Analiza współzależności pomiędzy cechami
+
+Problem: czy istnieje związek (zależność) pomiędzy cechami? Dla uproszczenie
+pomiędzy dwoma cechami, np. czy istneje związek pomiędzy paleniem
+a chorobą nowotworową, wiekem a prawdopodobieństem zgonu z powodu COVID19 itd
+
+Jaki jest charakter zależności? Jaka jest siła zależności?
+
+## Korelacyjny wykres rozrzutu (korelogram, wykres XY w Excelu, scatter plot)
+
+Obie cechy muszą być mierzalne.
+W układzie kartezjańskim każdej obserwacji odpowiada
+kropka o współrzędnych XY. 
+
+O występowaniu związku świadczy układanie się kropek według jakiegoś
+kształtu (krzywej). O braku związku
+świadczy chmura punktów niepodobna do żadnej krzywej.
+
+Punkty układające się według prostej świadczą o zależności liniowej
+(wyjątek: linia pozioma lub pionowa)
+Punkty układające się według krzywej świadczą
+o zależności nieliniowej.
+
+### Indianie Pima (Arizona/Meksyk)
+
+The Pima Indians of Arizona have the highest reported prevalences of obesity and non-insulin-dependent diabetes mellitus (NIDDM). In parallel with abrupt changes in lifestyle, these prevalences in **Arizona Pimas** have increased to epidemic proportions during the past decades (https://care.diabetesjournals.org/content/17/9/1067)
+
+![](./PimaIndians.jpg){width=75%}
+
+Przykład BMI a poziom glukozy dla Indianek z plemienia Pima (USA/Meksyk)
+
+
+
+```{r message=FALSE, echo=FALSE}
+library("ggplot2")
+library("dplyr")
+## google pima indians ggplot
+## https://www.r-bloggers.com/2017/08/end-to-end-visualization-using-ggplot2/
+## https://rpubs.com/jayarapm/PIMAIndianWomenDiabetes
+pima <- read.csv(file='pima-indians-diabetes.csv',sep=';',header=T)
+ggplot(pima, aes(x = bmi,y = glucose)) +
+ geom_point(size = 1) +
+ geom_smooth(method = "lm") +
+  geom_smooth(method = "loess", color='red')
+```
+
+### Testy a zakażeni wg województw w PL
+
+Wg teorii lansowanej przez pewną antyrządową telewizję (wszyscy wiemy o jaką TV chodzi:-))
+Liczba zarażonych w PL jest zaniżona bo wykonuje się ciągle zbyt mało testów. Można
+zweryfikować (w naiwny sposób) to stwierdzenie wykreślając liczę testów oraz liczbę zarażonych i/lub zmarłych wg województw 
+
+
+```{r message=FALSE, echo=FALSE}
+covidPL <- read.csv(file='c19_PL.csv',sep=';',header=T)
+covidPL$totalc <- covidPL$totalc / covidPL$pop * 1000
+covidPL$totald <- covidPL$totald / covidPL$pop * 1000
+
+ggplot(covidPL, aes(x = testy, y = totalc)) +
+  geom_point(color="steelblue", size=2) +
+  geom_smooth(method = "lm") +
+  ggtitle ("Liczba testów vs liczba zarażonych na 1mln w PL")
+```
+
+oraz
+
+```{r message=FALSE, echo=FALSE}
+##covidPL <- read.csv(file='c19_PL.csv',sep=';',header=T)
+ggplot(covidPL, aes(x = testy, y = totald)) +
+  geom_point(color="steelblue", size=2) +
+  geom_smooth(method = "lm") +
+  ggtitle ("Liczba testów vs liczba zmarłych wz z/na COVID19 na 1mln w PL")
+```
+
+Wniosek: twierdzenie antyrządowej TV wydaje się słabo uzasadnione zwłaszcza 
+w odniesieniu do zależności testy vs zmarli. 
+Dla pewności to sama zależność dla danych z wybranych krajów
+świata (dane pobrane ze strony ECDC)
+
+```{r message=FALSE, echo=FALSE}
+covidECDC <- read.csv(file='Covid19_tests_vs_cases.csv',sep=';',header=T)
+covidECDC$td <- covidECDC$td / covidECDC$population * 1000000
+covidECDC$tests_done <- covidECDC$tests_done / covidECDC$population * 1000000
+ggplot(covidECDC, aes(x = tests_done, y = td)) +
+  geom_point(color="steelblue", size=2) +
+  geom_smooth(method = "lm") +
+  geom_text(aes(label=iso),size=2.0, vjust=-0.75) +
+  ggtitle ("Liczba testów vs liczba zmarłych wz z/na COVID19 na 1mln w PL")
+```
+
+Hmm...
+
+Rodzaje zależności (brak, liniowa, nieliniowa)
+
+### Spożycie mięsa a GDP (Świat 2013 rok)
+
+```{r message=FALSE, echo=FALSE}
+meatCons <- read.csv(file='meatCons_vs_GDP.csv',sep=';',header=T)
+ggplot(meatCons, aes(x = gdp2013, y = y2013)) +
+  geom_point(color="steelblue", size=1) +
+  geom_smooth(method = "lm") +
+  geom_smooth(method = "loess", color="red")
+```
+
+Obserwacje nietypowe (odstające)
+
+## Wykres mozaikowy (mosaic plot)
+
+W przypadku danych niemierzalnych do wizualizacji stosuje się
+**wykres mozaikowy**. Przykładowo plik smoker.csv zawiera dane dotyczące palenia
+(pali, palił-nie-pali, nigdy-nie-palił) oraz statusu społeczno-ekonomicznego (wysoki, średni, niski). Liczebności poszczególnych kategorii są następujące:
+
+```{r message=FALSE, echo=FALSE}
+smokerData <- read.csv(file='smoker.csv',sep=';',header=T)
+summary(smokerData)
+```
+
+Wykres mozaikowy wygląda zaś następująco (kolorem wyróżniono SES):
+
+```{r message=FALSE, echo=FALSE}
+library("ggmosaic")
+#mosaicplot(smoke)
+ggplot(data=smokerData) +
+geom_mosaic(aes(x = product(Smoke,SES), 
+                 fill=SES), na.rm=TRUE) +
+ xlab(label="SES") +
+ ylab(label="Palenie") +
+  ggtitle("Palenie vs SES")
+```
+
+## Tablice korelacyjne (dwudzielne, two-way tables)
+
+Pozwalają ustalić zależność pomiędzy zmiennymi niekoniecznie mierzalnymi
+(palenie a nowotwór)
+
+Rodzaje zależności: jest/nie ma
+
+```{r message=FALSE, echo=FALSE}
+smoke <- table(smokerData$Smoke,smokerData$SES)
+
+##barplot(smoke,legend=T,beside=T,main='Smoking Status by SES')
+##plot(smoke,main="Smoking Status By Socioeconomic Status")
+smoke
+```
+
+### Rozkłady warunkowe i brzegowe
+
+```{r message=FALSE, echo=FALSE}
+## rozkłady warunkowe
+margin.table(smoke)
+margin.table(smoke,margin = 1)
+margin.table(smoke,margin = 2)
+
+## rozkłady brzegowe
+prop.table(smoke)
+prop.table(smoke, margin = 1)
+prop.table(smoke, margin = 2)
+```
+
+### Tablice wielodzielne dla danych ilościowych
+
+```{r message=FALSE, echo=FALSE}
+pricelist <- read.csv(file='price-list.csv',sep=';',header=T)
+## https://stackoverflow.com/questions/48478054/how-to-create-a-crosstab-table-using-two-tables-in-r
+Weight = cut(pricelist$weight, breaks = c(70,80,90,100))
+Quantity = cut(pricelist$quantity, breaks = c(0,10,20,30))
+dt2 <- data.frame(Weight, Quantity, Price = pricelist$price)
+xtabs(Price ~ Weight, dt2)
+#          Quantity
+#Weight     (0,10] (10,20] (20,30]
+#  (70,80]    1180     830     820
+#  (80,90]     770     340     250
+#  (90,100]    490     680    1765
+```
+
+## Iloraz szans (odds ratio)
+
+Linus Pauling (laureat nagrody Nobla/witamina C). Podawanie witaminy C
+a przeziębienie/brak przeziębienia.
+
+![](./Pauling.jpg){width=50%}
+
+```
+	            | Cold	No Cold	| Totals
+--------------+-----------------+-------
+Placebo	      |   31	109	| 140
+Ascorbic Acid |   17	122	| 139
+--------------+-----------------+-------
+Totals	      |   48	231	| 279
+```
+
+Dla przypomnienia (wykres mozaikowy):
+
+```{r message=FALSE, echo=FALSE}
+vitC <- read.csv(file='vit_C.csv',sep=';',header=T)
+ggplot(data=vitC) +
+geom_mosaic(aes(x = product(treatment,cold), 
+                 fill=cold), na.rm=TRUE) +
+ xlab(label="cold") +
+ ylab(label="treatment") +
+  ggtitle("Cold vs treatment")
+```
+
+Dwa **rozkłady brzegowe**:
+Brał placebo/Brał witaminę C (140 vs 139)
+Zachorował/nie zachorował (48/231)
+
+Cztery **rozkłady warunkowe**:
+Brał placebo oraz zachorował/nie zachorował 31 vs 109 lub $31/(31+109)=0,2214$
+oraz $109/(109+31.0) = 0.7785$. Interpretacja: 22,14% tych którzy brali placebo
+zachorowało, a 77,85% nie zachorowało.
+
+Brał witaminę C oraz zachorował/nie zachorował 17 vs 122 lub
+$17/(17+122.0) = 0.1223$ oraz $122/(17+122.0) = 0.8776$
+Interpretacja: 12,23% tych którzy brali witaminę C zachorowało, a 87,76% nie zachorowało.
+
+Zachorował oraz brał placebo/witaminę C 31 vs 17
+Nie zachorował oraz brał placebo/witaminę C 109 vs 122
+
+Iloraz szans to iloraz częstotliwości warunkowych.
+Odds of getting a cold versus not getting a cold given that a person took a placeboL:
+31/109 albo 22,14/77,85 = 0,28
+Szansa że ktoś zachoruje a brał placbo wynosi 0,28%.
+Szansa, że ktoś zachoruje a brał witaminę C wynosi 17/122=0,13
+
+Właściwości OR: jeżeli równe 1 to sukces/porażka równie prawdopodobne;
+jeżeli większe od 1 to sukces bardziej prawdopodobny; jeżeli
+mniejsz od 1 to porażka jest bardziej prawdopodobna.
+
+## Test chi-kwadrat (Pearsona)
+
+Rodzaje zależności: jest/nie ma
+
+Idea jest prosta: porównujemy liczebności tablicy korelacyjnej
+z **liczebnościami teoretycznymi** to znaczy takimi które wynikają
+z przyjęcia założenia że cechy XY są niezależne. Innymi słowy oceną
+wielkości związku jest różnica pomiędzy **liczebnościami teoretycznymi**
+a **liczebnościami empirycznym**.
+
+### Narciarze leczeni witaminą C
+
+```
+	            | Cold	No Cold	| Totals
+--------------+-----------------+-------
+Placebo	      |   31	109	| 140
+Ascorbic Acid |   17	122	| 139
+--------------+-----------------+-------
+Totals	      |   48	231	| 279
+```
+
+Gdyby XY były niezależne to
+
+```
+              | Cold	No Cold	| Totals
+--------------+-----------------+-------
+Placebo	      | 24,1	115,9	| 140
+Ascorbic Acid | 23,9	115,1	| 139
+--------------+-----------------+-------
+Totals	      |   48	231	| 279
+```
+
+Policzmy różnice $(31 - 24,1) + (17 - 23,9) = 0$. 
+Dla drugiej kolumny
+oczywiście też jest zero. Ale różnice podniesione do kwadratu już nie będą się zerowały:
+$(31 - 24,1)^2 + (17 - 23,9) + (109 - 115,9) + (122 - 115,1) = 47,6 + 47,6 + 47,6 + 47,6 = 190,44$
+
+Im większa różnica tym nasze przekonanie że istnieje związek pomiędzy
+cechami jest większe (co oczywiste). Pytanie kiedy jest **dużo**.
+
+```{r message=FALSE, echo=FALSE}
+summary(smoke)
+
+#expected <- as.array(margin.table(smoke,1))
+#  %*% t(as.array(margin.table(smoke,2))) / margin.table(smoke)
+```
+
+
+
+##  Pomiar siły zależności: współczynnik korelacji liniowej Pearsona
+
+Kowariancja/współczynnik korelacji liniowej Pearsona
+
+$$cov (x, y) = 1/n \sum_{i=1}^N (x - \bar x) (y - \bar y)$$
+
+Przykład graficzny:
+kowariacja zależy od rozproszenia (im większe tym większa), ma dziwną jednostkę
+oraz zależy od wybranych skal (tony vs gramy)
+
+https://tinystats.github.io/teacups-giraffes-and-statistics/05_correlation.html
+
+Dlatego do pomiaru związku pomiędzy cechami nie używa się
+kowariancji ale współczynnika korelacji (liniowej, *Pearson linear
+correlation coefficient*):
+
+$$r_xy = cov(xy) / (S_x \cdot S_y)$$
+
+Miara niemianowana, o wartościach ze zbioru $[-1;1]$; Skrajne wartości $\pm 1$
+świadczą o związku funkcyjnym (wszystkie punkty układają się na linii prostej);
+wartość zero świadczy o braku związku (linia pozioma/pionowa)
+
+Interpretacja opisowa: wartości powyżej 0,9 świadczą o silnej zależności
+
+##  Pomiar siły zależności: współczynnik korelacji rang 
+
+Współczynnik korelacji rang (Spearmana vel *Spearman's Rank-Order Correlation*)
+może być stosowany
+w przypadku gdy cechy są mierzone w skali porządkowej (lub lepszej)
+
+Obliczenie współczynnika Spearmana dla $N$ obserwacji na zmiennych XY
+polega na zamianie wartości
+XY na **rangi** (numery porządkowe od $1...N$). Następnie stosowana jest
+formuła Pearsona, tj. ($\tau_x$ oraz $\tau_y$ oznaczają **rangi**):
+
+$$\rho_xy = cov(\tau_x, \tau_y) / ( S_{\tau_x} \cdot S_{\tau_y} )$$
+
+Współczynnik $\rho_xy$ to także miara niemianowana, o wartościach
+ze zbioru [-1;1];
+
+W podręcznikach można też spotkać formułę alternatywną:
+
+$$r_s = 1 - \frac{6 x \sum_{i=1}^N d_i^2}{ N(N^2 -1)}$$
+
+gdzie $d_i$ oznacza różnicę między rangami dla cechy X oraz $Y$,
+tj. $d_i = \tau_{x_i} - \tau_{y_i}$. Wymagany jest aby $d_i$ były
+różne od siebie. Można też spotkać (w podręcznikach) przykłady
+użycia formuły alternatywnej dla rang identycznych, wówczas
+(dla $k$ identycznych rang, zamienia się je na wartości średnie)
+$d_i = \frac{1}{k}\sum_i=1^k d_i^k$. Raczej nie zalecane...
+
+### Przykład: testy z zakażeni wg województw w PL
+
+Współczynnik Pearsona i Spearmana dla zależności między liczbą testów 
+a liczbą zarażonych wirusem COVID19 (PL/województwa):
+
+```{r message=FALSE, echo=FALSE}
+
+rp <- cor(covidPL$testy, covidPL$totalc, method = "pearson")
+rs <- cor(covidPL$testy, covidPL$totalc, method = "spearman")
+rp
+rs
+```
+Współczynnik Pearsona i Spearmana dla zależności między liczbą testów 
+a liczbą zmarłych z powodu COVID19:
+
+```{r message=FALSE, echo=FALSE}
+
+rp <- cor(covidPL$testy, covidPL$totald, method = "pearson")
+rs <- cor(covidPL$testy, covidPL$totald, method = "spearman")
+rp
+rs
+```
+
+### Przykład: spożycie mięsa
+
+Współczynnik Pearsona i Spearmana dla zależności między spożyciem mięsa w 1980
+a spożyciem mięsa w 2013 roku (zmienna objaśniana):
+
+```{r message=FALSE, echo=FALSE}
+
+rpm <- cor(meatCons$y1980, meatCons$y2013, method = "pearson")
+rsm <- cor(meatCons$y1980, meatCons$y2013, method = "spearman")
+rpm
+rsm
+```
+
+## Regresja liniowa
+
+Obie cechy muszą być mierzone za pomocą skali co najmniej interwałowej.
+
+Regresja zakłada że istnieje związek przyczyna-skutek. Jedna zmienna
+(niezależna lub objaśniana) jest przyczyną, a druga zależna
+skutkiem (emisja Co_2
+wzrost temperatury atmosfery, a nie odwrotnie)
+
+W przypadku gdy zależność dotyczy dwóch cech mówi się o
+**regresji prostej**. Regresja wieloraka to zależność pomiędzy jedną
+zmienną objaśnianą (Y) a wieloma zmiennymi objaśniającymi ($X_1, ... X_k$)
+
+Liniowa funkcja regresji ma postać:
+
+$$Y = a \cdot X + b$$
+
+Współczynnik $a$ ma jasną interpretację: jeżeli wartość zmiennej $X$
+rośnie o jednostkę to wartość zmiennej Y zmienia się przeciętnie o $a$.
+Wyraz wolny zwykle nie ma sensu (formalnie jest to wartość zmiennej $Y$
+dla $X=0$)
+
+Oznaczmy przez $y_i$ wartości obserwowane (empiryczne) a przez $\hat y_i$
+$wartości teoretyczne$ (leżące na prostej linii regresji).
+Wartości $a$ oraz $b$ wyznacza się minimalizując:
+$\sum_{i=1}^N\hat y_i - y_i $ (suma kwadratów odchyleń wartości
+empirycznych od wartości teoretycznych ma być minimalna)
+
+### Ocena dopasowania
+
+Średni błąd szacunku (MSE mean squared error).
+Oznaczając *resztę* jako: $e_i = y_i - \hat y_i$, definiujemy **średni
+błąd szacunku** jako: $S_e = \sqrt \sum (e_i^2 / n -k). (Przy okazji $S_e^2$
+nazywamy **wariancją resztową**)
+
+### Współczynnik zbieżności i determinacji
+
+Suma kwadratów reszt (albo odchyleń wartości teoretycznych
+od wartości empirycznych,
+albo suma kwadratów błędów vel **resztowa suma kwadratów**):
+$RSK = \sum (y_i - \hat y_i)^2$.
+Suma kwadratów odchyleń **wartości empirycznych**
+od średniej (**ogólna suma kwadratów**): $OSK = \sum (y_i - \bar y)^2$
+Suma kwadratów odchyleń **wartości teoretycznych**
+od średniej (**wyjaśniona suma kwadratów**):
+$WSK = \sum (\hat y_i - \bar y)^2$
+
+Można wykazać, że $OSK = WSK + RSK$.
+Współczynnik zbieżności to $R^2 = WSK/OSK$. Współczynnik
+determinacji to $\Phi^2 = RSK/OSK$.
+
+Współczynniki przyjmują wartość z przedziału $[0,1]$ lub $[0, 100]$%
+Interpretacja współczynników: procent zmienność wyjaśniane/nie wyjaśniane
+przez linię regresji.
+
+Zerowa wartość parametru $a$
+
+Jeżeli: $Y= 0 \cdot X + b$, to $Y = b$ czyli nie ma zależności
+pomiędzy $XY$. Wartości $a$ bliskie zero wskazują na słabą zależność
+pomiędzy cechami. Przyjmijmy
+
+$$\hat Y = a \cdot \hat X + b + e$$
+
+w tym zapisie **obserwowana linia regresji** jest równa
+linii teoretycznej $Y = a \cdot X + b$ plus błąd losowy. (przy czym
+losowość błędu
+przejawia się m.in w tym, że nie ma on charakteru systematycznego, tj.
+jest określona jako zero plus/minus cośtam)
+
+Można teraz
+zadać pytanie jeżeli $a=0$ to jakie jest prawdopodobieństwo że
+współczynnik $\hat a$ oszacowany na podstawie $n$ obserwacji mierzonych
+z błędem $e$ będzie (co do wartości bezwzględnej) większy niż $a_e$.
+Albo inaczej: otrzymaliśmy $a_e$, jakie jest prawdopodobieństwo
+otrzymania takiej wartości (lub mniejszej co do wartości bezwzględnej)
+przy założeniu że istotnie $a=0$.
+
+Jeżeli takie prawdopodobieństwo jest duże to zakładamy że być może $a=0$
+a jeżeli małe to że $a \not0$. Duże/małe przyjmujemy arbitralnie, zwykle
+jest to $0,1$, $0,05$ lub $0,01$.
+
+Pakiety statystyczne szacują ww. prawdopodobieństwo, zwykle oznaczając
+je *prob*. Reasumując jeżeli przyjeliśmy $0,05$ jako wartość na tyle małą że
+niemożliwą w realizacji oraz otrzymaliśmy $prob=0,006$ to mówimy że
+współczynnik $a$ jest **istotnie różny od zera**.
+
+Testowanie istotności współczynnika regresji jest ważnym kryterium oceny
+jakości dopasowania.
+Regresja z **nieistotnym** współczynnikiem nie
+może być podstawą do interpretowania zależności pomiędzy XY.
+
+### BMI a glukoza dla Indian Pima 
+
+Szacujemy liniową funkcję regresji dla zmiennych glucose  (objaśniana)
+oraz bmi (objaśniająca):
+
+```{r message=FALSE, echo=FALSE}
+lm <- lm(data=pima, glucose ~ bmi ); 
+##summary(lm)
+lmc <- coef(lm);
+lmr <- summary(lm)$r.squared
+lmc
+lmr
+##
+## str(lm)
+summary(lm)$coefficients
+```
+
+### Testy a zmarli wg województw (PL)
+
+
+```{r message=FALSE, echo=FALSE}
+lm <- lm(data=covidPL, totald ~ testy ); 
+##summary(lm)
+lmc <- coef(lm);
+lmr <- summary(lm)$r.squared
+lmc
+lmr
+##
+## str(lm)
+summary(lm)$coefficients
+```
+
+### Testy a zarażeni (dane ECDC)
+
+Im więcej testów tym więcej zakażonych:
+
+```{r message=FALSE, echo=FALSE}
+lm <- lm(data=covidECDC, td ~ tests_done ); 
+##summary(lm)
+lmc <- coef(lm);
+lmr <- summary(lm)$r.squared
+lmc
+lmr
+##
+## str(lm)
+summary(lm)$coefficients
+```
+
+### GDP a spożycie mięsa
+
+Im większe GDP tym więcej ludzie jedzą mięsa:
+
+```{r message=FALSE, echo=FALSE}
+##meatCons <- read.csv(file='meatCons_vs_GDP.csv',sep=';',header=T)
+##ggplot(meatCons, aes(x = gdp2013, y = y2013)) +
+lm <- lm(data=meatCons, y2013 ~ gdp2013 ); 
+##summary(lm)
+lmc <- coef(lm);
+lmr <- summary(lm)$r.squared
+lmc
+lmr
+##
+## str(lm)
+summary(lm)$coefficients
+
+```
+
+Prognozowanie: ile wyniesie liczba zmarłych gdyby wykonywani p testów. Ile
+wyniesie poziom glukozy
+
+## Regresja logistyczna
+
+Iloraz szans (*odds ratio*), to stosunek sukcesów do porażek (zdrowi/chorzy):
+
+$$O_R = \frac{p_1}{p_0} $$
+
+(W ogólności $log(odds) = a_0 + a_1 \cdot x_1  + \ldots + a_k \cdot x_k$)
+
+Regresja logistyczna w najprostrzej postacji ma postaci:
+
+$$log(O_R) = a \cdot x + b$$
+
+Interpretacja: jeżeli X wzrośnie o jednostkę to logarytm ilorazu szans
+wzrośnie o $log(O_R)$ lub iloraz szans wzrośnie
+i $exp^{log(O_R)} \cdot 100 - 100$ procent.
+
+## Przykład
+
+Załóżmy że chcemy zbadać zależność pomiędzy liczbą wypalonych papierosów
+a zachorowalnością na nowotwór płuc, tj.:
+$$log(O_R) = a \cdot P + b$$, gdzie zmierzyliśmy prosząc palącego
+o podanie przez ile lat wypalał minimum x papierosów dziennie.
+Załóżmy dalej że P wyraziliśmy w 10000 papierosów (około 2lata
+palenia po 15 papierosów/dzień) i otrzymaliśmy $log(O_R) = 0,1$.
+Wówczas $O_R = 1.1 \cdot 100 - 100 = 10$ procent.
+Każde kolejne
+10 tys papierosów zwiększa $O_R$ o 10%.
+
+https://stats.idre.ucla.edu/other/mult-pkg/faq/general/faq-how-do-i-interpret-odds-ratios-in-logistic-regression/
+
+## Regresja kwantylowa
+
+Innym razem
+
+## Materiały dodatkowe
+
+https://bookdown.org/mpfoley1973/data-sci/two-way-tables.html
+
+https://online.stat.psu.edu/stat504/node/69/
+
+https://rstudio-pubs-static.s3.amazonaws.com/344010_1f4d6691092d4544bfbddb092e7223d2.html
