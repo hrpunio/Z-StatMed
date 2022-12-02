@@ -1,0 +1,378 @@
+---
+title: 'Statystyka: przykładowa analiza ankiety'
+author:
+- name: Tomasz Przechlewski
+  email: t.plata-przechlewski@psw.kwidzyn.edu.pl
+  affiliation: Powiślańska Szkoła Wyższa (Kwidzyn/Poland)
+date: "Jan. 2021"
+output:
+  html_document
+description: (c) Tomasz Przechlewski / CC-BY license
+---
+
+```{r setup, include=FALSE }
+knitr::opts_chunk$set(echo = F)
+require(ggplot2)
+require(dplyr)
+require(tidyr)
+library("knitr")
+library("readr")
+library("moments")
+```
+
+## Uwagi ogólne
+
+Badanie dotyczy strachu i samosktuteczności. Czy większa samoskuteczność skutkuje większym strachem czy odwrotnie. Czy strach zależy od płci,
+stażu i wielkości firmy?
+
+Przed wyżej wymienioną zasadniczą analizą należy scharakteryzować
+respondentów względem cech demograficzno-społeczno-ekonomicznych,
+w naszym przypadku: płeć, staż, wielkość firmy.
+
+W poniższym opisie tekst w nawiasach [...] to wskazówki dotyczące
+zastosowanej metody.
+
+Formularz ankiety jest tutaj:
+https://docs.google.com/forms/d/e/1FAIpQLSe978MLywUaAomO8BmD1_VsXdOzbV5cVtiIqbFQhurhtxFQKQ/viewform?usp=sf_link
+
+Wszystkie zastosowane metody statystyczne są dostępne w arkuszu LibreOffice
+w menu Dane → Statystyka.
+
+```{r}
+d0 <- read.csv("strach_i_samoskutecznosc.csv", 
+               sep = ',', 
+               dec = ",",
+               col.names = c("time", "f1", "f2", 'f3', 'f4', 'f5', 'f6', 'f7',
+            's1', 's2', "s3", "s4", 's5', 's6', 's7', 's8', 's9', 's10',
+            'ex', 'covid', 'sex', 'size'),
+                skip=1, header=F, na.string="NA") 
+
+d1 <- d0 %>%
+  mutate(across(c("f1", "f2", 'f3', 'f4', 'f5', 'f6', 'f7', 
+                  's1', 's2', "s3", "s4", 's5', 's6', 's7', 's8', 's9', 's10', 
+                  ), ~ case_when(
+    . == "zdecydowanie nie" ~ 1,
+    . == "nie"              ~ 2,
+    . == "ani tak/ani nie"  ~ 3,
+    . == "tak"              ~ 4,
+    . == "zdecydowanie tak" ~ 5
+  ))) %>%
+  mutate (fear = f1 + f2 + f3 + f4 + f5 + f6 + f7,
+          se = s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8 +s9 +s10) %>%
+  select (fear, se, ex, covid, sex, size)
+```
+
+
+## Charakterystyka badanych respondentów
+
+## Badani wg płci
+
+```{r}
+sex.f <- d1 %>%
+  select (sex) %>%
+  group_by(sex)%>%
+  summarize(n=n())%>%
+  mutate(prop=n/sum(n) * 100 )
+
+sex.t <- kable(sex.f, col.names = c('płeć', 'n', '%'))
+sex.t
+```
+Zbadano `r nrow(d1)` respondentów, wśród których
+było 116 kobiet oraz 24 mężczyn albo 87,4% respondentów to kobiety
+a 12,6% to mężczyźni.
+
+
+Wykres słupkowy:
+
+```{r}
+## chart
+p.1 <- ggplot(sex.f, aes(x = reorder(sex, prop), y = prop )) +
+  ggtitle("Badani respondenci wg płci") +
+  xlab("") + ylab("%") +
+  geom_bar(position = 'dodge', stat = 'identity', fill = "steelblue") +
+  geom_text(data=sex.f, aes(label=sprintf("%.2f", prop), y= prop), hjust=1.5, color="white" ) +
+  #scale_x_discrete (breaks=var.names,  labels=var.labels) +
+  coord_flip()
+p.1
+```
+
+
+## Badani wg wielkość firmy
+
+[Jak wg płci tylko zmienną grupującą jest zatrudnienie w firmie
+w której pracuje respondent]
+
+```{r}
+size.f <- d1 %>%
+  select (size) %>%
+  group_by(size)%>%
+  summarize(n=n())%>%
+  mutate(prop=n/sum(n) * 100 )
+
+size.t <- kable(size.f, col.names = c('zatrudnienie', 'n', '%'))
+size.t
+```
+
+Zatrudnionych w firmach < 10 jest na tyle mało że warto
+zmienić podział na firmy do 50 zatrudnionych oraz większe:
+
+```{r}
+
+## recode
+## podziel na dwie tylko
+size.f.r <- size.f %>%
+mutate(size=recode(size, 
+                   '1' = '1-49',
+                  'do 9 osób'="1-49",
+                  '10-49'= '1-49')) %>%
+  group_by(size) %>%
+    summarise(n=sum(n), prop=sum(prop))
+
+## chart
+p.2 <- ggplot(size.f.r, aes(x = reorder(size, prop), y = prop )) +
+  ggtitle("Badani wg wielkości firmy w której są zatrudnieni") +
+  xlab("") + ylab("%") +
+  geom_bar(position = 'dodge', stat = 'identity', fill = "steelblue") +
+  geom_text(data=size.f.r, aes(label=sprintf("%.2f", prop), y= prop), hjust=1.5, color="white" ) +
+  #scale_x_discrete (breaks=var.names,  labels=var.labels) +
+  coord_flip()
+p.2
+```
+
+Większość respondentów (57%) pracuje w firmach dużych (50 i więcej zatrudnionych.)
+
+
+## Badani wg stażu
+
+[analizowana zmienna mierzona jest w skali liczbowej:
+rysujemy histogram oraz liczymy miary średnie, rozproszenia i asymetrii.]
+
+```{r}
+##summary(d1$ex)
+ex.mean <- mean(d1$ex)
+ex.median <- median(d1$ex)
+ex.sd <- sd(d1$ex)
+ex.iqr <- IQR(d1$ex)
+ex.skew <- skewness(d1$ex)
+
+```
+
+Średni staż respondentów wnosił `r ex.mean` lat. Połowa respondentów
+przepracowała `r ex.median` lat i mniej, a połowa
+`r ex.median` lat i więcej [interpretacja mediany]. 
+Dość znaczna różnica między średnią a medianą wskazuje na znaczącą
+asymetrię lewostronną.
+
+Przeciętne odchylenie od średniej wyniosło `r ex.sd` lat, wielkość
+rozstępu międzykwartylowego `r  ex.iqr` lat (odchylenie ćwiartkowe
+`r ex.iqr/2` lat).
+
+Skośność `r ex.skew` (albo różnica między średnią a medianą, podzielona
+przez odchylenie standardowe):
+`r (ex.mean - ex.median)/ex.sd` jest ujemna ale niewielka.
+
+Histogram (szerokość przedziału 5 lat):
+
+```{r}
+ex.p <- ggplot(d1, aes(x = ex)) + 
+  geom_histogram(binwidth = 5, fill='steelblue', color='navyblue') +
+ ylab("liczba respondentów") +
+ xlab("lata pracy") +
+ ggtitle("Badani wg stażu pracy") 
+ex.p
+```
+
+## Badani według stażu pracy oraz płci
+
+[Można przeprowadzić bardziej szczegółową analizę respondentów łącznie
+w oparciu o dwie zmienne, np staż i płeć. Ponieważ staż jest mierzony
+na skali liczbowej można porównać średnie wartości stażu dla kobiet oraz
+mężczyzn.]
+
+Średnie wielkości stażu według płci respondentów zestawiono
+w tabeli:
+
+```{r}
+## staż jest liczbą
+## W grupach staż wg płci
+
+ex.sex.f <- d1 %>%
+  select (ex, sex) %>%
+  group_by(sex)%>%
+  summarize(m=mean(ex), median = median(ex))
+
+ex.sex.t <- kable(ex.sex.f, col.names = c('płeć', 'średni staż', 'mediana stażu'))
+
+ex.sex.t
+```
+
+Średni staż kobiet jest znacząco wyższy. Mediana stażu w obu grupach
+jest zbliżona i wynosi 12 lat.
+
+## Zasadnicza część badania: strach a samoskuteczność, staż, płeć itd...
+
+
+## Strach a płeć respondentów
+
+[Czy strach zależy od płci (test chi-kwadrat niezależności)?]
+
+Ponieważ strach jest mierzony na skali liczbowej przed zastosowaniem
+testu przekodowujemy go na skalę porządkową (duży 25--35; średni 15--24; mały 14 i mniej)
+
+Tablica wielodzielna
+
+```{r}
+fear.sex.f <- d1 %>%
+  select (fear, sex) %>% 
+  mutate( fear=case_when(fear >= 25 ~ "duży",  fear >= 15 ~ "średni", 
+                         TRUE ~ "mały") ) %>%
+  table()
+##fear.sex.f
+
+fear.sex.t <- kable(fear.sex.f)
+
+fear.sex.t
+```
+
+Test chi-kwadrat z hipotezą zerową: strach i płeć są niezależne:
+
+```{r, warning=F}
+## test chi kwadrat
+chi_test <- chisq.test(fear.sex.f)
+#chi_test$statistic
+chi_test$p.value
+## Nie ma podstaw do odrzucenia hipotezy że nie ma związku
+## między fear a sex
+```
+
+Wartość prawdopodobieństwa `r chi_test$p.value` oznacza że nie ma
+podstaw do odrzucenia hipotezy o niezależności zmiennych strach i płeć
+(co oznacza że nie ma związku między tymi cechami)
+
+## Strach a samoskuteczność
+
+[obie zmienne są liczbowe możemy zastosować model regresji liniowej]
+
+
+$$\mathrm{strach} = b \cdot \mathrm{samoskuteczność}  + a$$
+
+```{r}
+lm <- lm(data=d1, fear ~ se );
+lmc <- coef(lm);
+lmr <- summary(lm)$r.squared
+lmc
+##
+##lmr
+##["factor(treatment)1"])
+b.coeff <- lmc["se"]
+a.coeff <- lmc["(Intercept)"]
+##summary(lm)$coefficients
+```
+
+Po oszacowaniu parametrów metodą najmniejszych kwadratów
+otrzymujemy b = `r b.coeff`; a = `r a.coeff`. Interpretacja:
+jednostkowy wzrost samoskuteczności skutkuje zmniejszeniem strachu
+o `r  -(b.coeff)`, ale dopasowanie modelu jest bardzo słabe. 
+Współczynnik determinacji
+$R^2 = $ `r lmr * 100`%.
+Tak niska wartość $R^2$ oznacza że nie ma (liniowego) związku między
+strachem a samoskutecznością.
+
+
+Wykres rozproszenia + linia regresji:
+
+```{r, warning=FALSE}
+ggplot(d1, aes(x = fear, y = se)) +
+  geom_point(color="steelblue", size=2) +
+  geom_smooth(method = "lm") +
+  ggtitle ("Strach vs samoskuteczność")
+```
+
+Z uwagi na bardzo słabe dopasowanie można stwierdzić że nie ma
+związku między strachem a samoskutecznością
+
+[Zamiast regresji można porównać średnie w grupach. W tym celu
+ponieważ samoskuteczność jest mierzona na skali liczbowej przekodowujemy ją 
+na skalę porządkową, tworząc następujące grupy: 'duża' > 40; 'średnia' 30--39; 'mała' 20--29, 'bardzo mała' 19 i mniej]
+
+
+
+```{r}
+fear.se.f <- d1 %>%
+  select (fear, se) %>%
+  mutate( se=case_when(se >= 40 ~ "duża",  se >= 30 ~ "średnia", 
+                       se >= 20 ~ "mała", TRUE ~ "b. mała") ) %>%
+  group_by(se)%>%
+  summarize(fm = mean(fear)) 
+
+fear.se.t <- kable(fear.se.f,
+                   col.names = c('samoskuteczność', 'średni strach')
+                   )
+
+fear.se.t
+```
+
+Niewielkie różnice między średnimi świadczą o tym że nie ma
+związku pomiędzy samoskutecznością a strachem.
+
+Można także oceniać zależność pomiędzu strachem i samoskutecznością
+obliczając współczynnik korelacji (liniowej) Pearsona
+
+```{r}
+r.f.se <- cor(d1$fear, d1$se, method = "pearson")
+r.f.se
+```
+
+niewielka korelacja ujemna (i dłuższy staż tym większy strach).
+Formalnie przetestować czy wartość `r r.f.se` jest **istotnie różna**
+od zera (jeżeli tak to istnieje związek między strachem a samoskutecznością):
+
+```{r}
+r.f.se.test <- cor.test(d1$fear, d1$se, method = "pearson")
+r.f.se.test
+```
+
+Wartość jest prawie istotna na poziomie 5% (istotna na poziomie 10%)
+o czym świadczy wartość prawdopodobieństwa (`p-value` = 0,05846)
+
+## Strach a staż
+
+[także model regresji]
+
+```{r}
+lm <- lm(data=d1, fear ~ ex );
+lmc <- coef(lm);
+lmr <- summary(lm)$r.squared
+lmc
+##
+##lmr
+b.coeff <- lmc["ex"]
+a.coeff <- lmc["(Intercept)"]
+
+##summary(lm)$coefficients
+```
+
+Po oszacowaniu parametrów metodą najmniejszych kwadratów
+otrzymujemy b = `r b.coeff`; a = `r a.coeff`. Interpretacja:
+wzrost stażu o rok skutkuje wzrostem strachu
+o `r  b.coeff` (w jednostkach skali mierzącej strach), 
+ale dopasowanie modelu jest znowu bardzo słabe. 
+Współczynnik determinacji
+$R^2 = $ `r lmr * 100`%.
+Tak niska wartość $R^2$ oznacza że nie ma (liniowego) związku między
+strachem a stażem.
+
+Wykres rozproszenia + linia regresji:
+
+```{r}
+ggplot(d1, aes(x = fear, y = ex)) +
+  geom_point(color="steelblue", size=2) +
+  geom_smooth(method = "lm") +
+  ggtitle ("Strach vs staż")
+```
+
+Z uwagi na bardzo słabe dopasowanie można stwierdzić, że nie ma
+związku między strachem a samoskutecznością
+
+
+**[Koniec]**
